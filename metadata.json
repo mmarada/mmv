@@ -1,0 +1,5 @@
+{
+  "name": "NestDirect",
+  "description": "A privacy-first rental listing and communication platform with a clean, Hacker News-style interface.",
+  "requestFramePermissions": []
+}
