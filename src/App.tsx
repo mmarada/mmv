@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { supabase } from "./lib/supabase";
 import Home from "./pages/Home";
 import Submit from "./pages/Submit";
@@ -82,6 +83,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <Analytics />
       <div className="min-h-screen bg-[#f6f6ef] font-sans text-[10pt] text-[#828282]">
         <div className="mx-auto max-w-[85%] bg-white w-full">
           {/* Header */}

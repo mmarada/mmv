@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { logger } from "../utils/logger";
 
 export default function Submit({ username }: { username: string }) {
   const navigate = useNavigate();
@@ -41,8 +42,10 @@ export default function Submit({ username }: { username: string }) {
     const { error: insertError } = await supabase.from("listings").insert([newListing]);
 
     if (insertError) {
+      logger.error("Error submitting listing:", insertError);
       setError(insertError.message);
     } else {
+      logger.info("Listing submitted successfully:", newListing.title);
       navigate("/");
     }
   };

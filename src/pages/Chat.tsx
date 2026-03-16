@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { encryptMessage, decryptMessage, importPublicKey } from "../utils/crypto";
+import { logger } from "../utils/logger";
 
 export default function Chat({ username }: { username: string }) {
   const [searchParams] = useSearchParams();
@@ -80,7 +81,7 @@ export default function Chat({ username }: { username: string }) {
         .order("created_at", { ascending: true });
       
       if (error) {
-        console.error("Error fetching messages:", error);
+        logger.error("Error fetching messages:", error);
         setErrorMsg(error.message);
       } else if (data) {
         // Decrypt messages
