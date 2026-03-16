@@ -14,6 +14,9 @@ vi.mock('../lib/supabase', () => ({
         eq: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ count: 0, error: null }),
         }),
+        order: vi.fn().mockReturnValue({
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
       }),
     }),
     channel: vi.fn().mockReturnValue({

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { supabase } from "./lib/supabase";
 import Home from "./pages/Home";
+import Item from "./pages/Item";
 import Submit from "./pages/Submit";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
@@ -117,15 +118,18 @@ export default function App() {
 
           {/* Main Content */}
           <main className="bg-[#f6f6ef] p-2 min-h-[calc(100vh-100px)]">
-            <Routes>
-              <Route path="/" element={<Home username={username} />} />
-              <Route path="/new" element={<Home username={username} />} />
-              <Route path="/login" element={session ? <Navigate to="/" /> : <Login />} />
-              <Route path="/submit" element={session ? <Submit username={username} /> : <Navigate to="/login" />} />
-              <Route path="/chat" element={session ? <Chat username={username} /> : <Navigate to="/login" />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/contact" element={<Contact />} />
-            </Routes>
+            {!loading && (
+              <Routes>
+                <Route path="/" element={<Home username={username} />} />
+                <Route path="/new" element={<Home username={username} />} />
+                <Route path="/item" element={<Item />} />
+                <Route path="/login" element={session ? <Navigate to="/" /> : <Login />} />
+                <Route path="/submit" element={session ? <Submit username={username} /> : <Navigate to="/login" />} />
+                <Route path="/chat" element={session ? <Chat username={username} /> : <Navigate to="/login" />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/contact" element={<Contact />} />
+              </Routes>
+            )}
           </main>
           
           {/* Footer */}

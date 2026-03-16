@@ -13,6 +13,7 @@ export default function Submit({ username }: { username: string }) {
     rent: "",
     budget: "",
     neighborhood: "",
+    description: "",
   });
   const [error, setError] = useState("");
 
@@ -37,6 +38,7 @@ export default function Submit({ username }: { username: string }) {
       rent: formData.type === "property" ? Number(formData.rent) : null,
       budget: formData.type === "requirement" ? Number(formData.budget) : null,
       neighborhood: formData.neighborhood,
+      description: formData.description,
     };
 
     const { error: insertError } = await supabase.from("listings").insert([newListing]);
@@ -127,6 +129,15 @@ export default function Submit({ username }: { username: string }) {
             value={formData.neighborhood}
             onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
             required
+          />
+        </div>
+        <div className="flex gap-2">
+          <label className="w-24 text-right text-[#828282] text-[10pt] font-bold">description</label>
+          <textarea
+            className="border border-[#828282] p-1 flex-1 text-[10pt]"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            rows={4}
           />
         </div>
         <div className="flex gap-2 mt-2">

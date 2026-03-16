@@ -6,8 +6,16 @@ import { formatDistanceToNow } from "date-fns";
 export default function Home({ username }: { username: string }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const location = useLocation();
   const isNewRoute = location.pathname === '/new';
+
+  useEffect(() => {
+    setPage(0);
+    setListings([]);
+    setHasMore(false);
+  }, [isNewRoute]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -20,40 +28,64 @@ export default function Home({ username }: { username: string }) {
         query = query.order("points", { ascending: false }).order("created_at", { ascending: false });
       }
 
+      query = query.range(page * 12, (page + 1) * 12);
+
       const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching listings:", error);
       } else {
-        setListings(data || []);
+        const fetchedListings = data || [];
+        setHasMore(fetchedListings.length > 12);
+        setListings(fetchedListings.slice(0, 12));
       }
       setLoading(false);
     };
 
     fetchListings();
-  }, [isNewRoute]);
+  }, [isNewRoute, page]);
 
-  if (loading) {
-    return <div className="p-4 text-[#828282]">Loading listings...</div>;
-  }
+  const handleUpvote = async (listingId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: existingVote } = await supabase
+      .from("upvotes")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("listing_id", listingId)
+      .single();
+
+    if (existingVote) return;
+
+    await supabase.from("upvotes").insert({ user_id: user.id, listing_id: listingId });
+    await supabase.rpc("increment_points", { listing_id: listingId });
+    setListings(prev => prev.map(l => l.id === listingId ? { ...l, points: l.points + 1 } : l));
+  };
 
   return (
     <div className="flex flex-col gap-2">
-      <ol className="list-decimal pl-6 text-[#828282] m-0">
+      <ol className="list-decimal pl-6 text-[#828282] m-0" start={page * 12 + 1}>
         {listings.map((listing) => (
           <li key={listing.id} className="mb-1 text-[10pt] marker:text-[#828282]">
             <div className="flex flex-col">
               <div className="flex items-baseline gap-1">
-                <a
-                  href={listing.url || "#"}
+                <button onClick={() => handleUpvote(listing.id)} className="text-[#828282] hover:text-black mr-1">▲</button>
+                <Link
+                  to={`/item?id=${listing.id}`}
                   className="text-black hover:underline"
                 >
                   {listing.title}
-                </a>
-                {listing.domain && (
-                  <span className="text-[#828282] text-[8pt]">
-                    (<a href={`#`} className="hover:underline">{listing.domain}</a>)
-                  </span>
+                </Link>
+                {listing.url && (
+                  <a
+                    href={listing.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#828282] text-[8pt] hover:underline"
+                  >
+                    ({listing.domain || 'link'})
+                  </a>
                 )}
                 <span className="text-[#ff6600] text-[8pt] font-bold ml-1">
                   ${listing.rent || listing.budget}/mo
@@ -92,11 +124,16 @@ export default function Home({ username }: { username: string }) {
       {listings.length === 0 && (
         <div className="pl-6 text-[#828282]">No listings found. Be the first to submit one!</div>
       )}
-      <div className="mt-4 pl-6">
-        <Link to="/new" className="text-[#828282] hover:underline text-[10pt]">
-          More
-        </Link>
-      </div>
+      {hasMore && (
+        <div className="mt-4 pl-6 flex gap-4">
+          <button 
+            onClick={() => setPage(p => p + 1)} 
+            className="text-[#828282] hover:underline text-[10pt]"
+          >
+            More
+          </button>
+        </div>
+      )}
     </div>
   );
 }
