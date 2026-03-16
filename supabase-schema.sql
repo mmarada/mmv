@@ -33,6 +33,7 @@ CREATE TABLE public.messages (
   receiver_username TEXT NOT NULL,
   listing_id TEXT,
   text TEXT NOT NULL,
+  read BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -100,3 +101,20 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Create enquiries table
+CREATE TABLE public.enquiries (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.enquiries ENABLE ROW LEVEL SECURITY;
+
+-- Enquiries Policies
+-- Authenticated users can insert enquiries
+CREATE POLICY "Authenticated users can insert enquiries" 
+  ON public.enquiries FOR INSERT 
+  WITH CHECK (auth.role() = 'authenticated');

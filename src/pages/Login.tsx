@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { generateKeyPair, exportPublicKey } from "../utils/crypto";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -39,6 +40,17 @@ export default function Login() {
         });
         if (signUpError) throw signUpError;
         if (data.user) {
+          // Generate E2EE keys
+          const keyPair = await generateKeyPair();
+          const publicKey = await exportPublicKey(keyPair.publicKey);
+          
+          // Store private key (PROTOTYPE: Use IndexedDB for production)
+          const privateKeyExported = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+          localStorage.setItem(`private_key_${data.user.id}`, btoa(String.fromCharCode(...new Uint8Array(privateKeyExported))));
+          
+          // Store public key in profiles table
+          await supabase.from("profiles").upsert({ id: data.user.id, public_key: publicKey });
+          
           navigate("/");
         }
       } else {
