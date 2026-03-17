@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { logger } from "../utils/logger";
+import { filterProfanity } from "../utils/profanity";
 
 export default function Submit({ username }: { username: string }) {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function Submit({ username }: { username: string }) {
     }
 
     const newListing = {
-      title: formData.title,
+      title: filterProfanity(formData.title),
       url: formData.url || null,
       domain: formData.url ? new URL(formData.url).hostname.replace('www.', '') : null,
       user_id: user.id,
@@ -37,8 +38,8 @@ export default function Submit({ username }: { username: string }) {
       type: formData.type,
       rent: formData.type === "property" ? Number(formData.rent) : null,
       budget: formData.type === "requirement" ? Number(formData.budget) : null,
-      neighborhood: formData.neighborhood,
-      description: formData.description,
+      neighborhood: filterProfanity(formData.neighborhood),
+      description: filterProfanity(formData.description),
     };
 
     const { error: insertError } = await supabase.from("listings").insert([newListing]);

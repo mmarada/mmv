@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { encryptMessage, decryptMessage, importPublicKey } from "../utils/crypto";
 import { logger } from "../utils/logger";
+import { filterProfanity } from "../utils/profanity";
 
 export default function Chat({ username }: { username: string }) {
   const [searchParams] = useSearchParams();
@@ -101,7 +102,7 @@ export default function Chat({ username }: { username: string }) {
             );
             
             const decryptedText = await decryptMessage(msg.text, privateKey);
-            return { ...msg, text: decryptedText };
+            return { ...msg, text: filterProfanity(decryptedText) };
           } catch (e) {
             return msg; // Keep encrypted if decryption fails
           }
@@ -144,7 +145,7 @@ export default function Chat({ username }: { username: string }) {
                 );
                 
                 const decryptedText = await decryptMessage(newMessage.text, privateKey);
-                return { ...newMessage, text: decryptedText };
+                return { ...newMessage, text: filterProfanity(decryptedText) };
               } catch (e) {
                 return newMessage; // Keep encrypted if decryption fails
               }
@@ -194,8 +195,11 @@ export default function Chat({ username }: { username: string }) {
 
       // Encrypt message
       let encryptedText = input;
+      const filteredInput = filterProfanity(input);
       if (recipientPublicKey) {
-        encryptedText = await encryptMessage(input, recipientPublicKey);
+        encryptedText = await encryptMessage(filteredInput, recipientPublicKey);
+      } else {
+        encryptedText = filteredInput;
       }
 
       const newMessage = {
