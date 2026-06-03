@@ -115,6 +115,50 @@ ALTER TABLE public.enquiries ENABLE ROW LEVEL SECURITY;
 
 -- Enquiries Policies
 -- Authenticated users can insert enquiries
-CREATE POLICY "Authenticated users can insert enquiries" 
-  ON public.enquiries FOR INSERT 
+CREATE POLICY "Authenticated users can insert enquiries"
+  ON public.enquiries FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
+
+-- Create applications table
+CREATE TABLE public.applications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE,
+  listing_title TEXT NOT NULL,
+  applicant_username TEXT NOT NULL,
+  landlord_username TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'accepted', 'rejected')),
+  message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
+
+-- Applicants can read their own applications; landlords can read applications on their listings
+CREATE POLICY "Users can read relevant applications"
+  ON public.applications FOR SELECT
+  USING (
+    applicant_username = COALESCE(
+      auth.jwt() -> 'user_metadata' ->> 'username',
+      split_part(auth.jwt() ->> 'email', '@', 1)
+    )
+    OR
+    landlord_username = COALESCE(
+      auth.jwt() -> 'user_metadata' ->> 'username',
+      split_part(auth.jwt() ->> 'email', '@', 1)
+    )
+  );
+
+CREATE POLICY "Authenticated users can insert applications"
+  ON public.applications FOR INSERT
+  WITH CHECK (auth.role() = 'authenticated');
+
+-- Only the landlord can update the status
+CREATE POLICY "Landlords can update application status"
+  ON public.applications FOR UPDATE
+  USING (
+    landlord_username = COALESCE(
+      auth.jwt() -> 'user_metadata' ->> 'username',
+      split_part(auth.jwt() ->> 'email', '@', 1)
+    )
+  );

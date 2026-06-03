@@ -9,6 +9,7 @@ import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import Contact from "./pages/Contact";
+import Applications from "./pages/Applications";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -103,6 +104,12 @@ export default function App() {
               <Link to="/chat" className={`hover:text-white px-1 ${unreadCount > 0 ? 'font-bold text-white' : ''}`}>
                 chat {unreadCount > 0 && `(${unreadCount})`}
               </Link>
+              {session && (
+                <>
+                  <span className="text-[#222]">|</span>
+                  <Link to="/applications" className="hover:text-white px-1">applications</Link>
+                </>
+              )}
             </nav>
             <div className="ml-auto px-2 text-[10pt]">
               {session ? (
@@ -126,6 +133,7 @@ export default function App() {
                 <Route path="/login" element={session ? <Navigate to="/" /> : <Login />} />
                 <Route path="/submit" element={session ? <Submit username={username} /> : <Navigate to="/login" />} />
                 <Route path="/chat" element={session ? <Chat username={username} /> : <Navigate to="/login" />} />
+                <Route path="/applications" element={session ? <Applications username={username} /> : <Navigate to="/login" />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/contact" element={<Contact />} />
               </Routes>
