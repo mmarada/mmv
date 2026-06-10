@@ -10,6 +10,8 @@ import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import Contact from "./pages/Contact";
 import Applications from "./pages/Applications";
+import Saved from "./pages/Saved";
+import Trends from "./pages/Trends";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -49,7 +51,7 @@ export default function App() {
         .select("*", { count: "exact", head: true })
         .eq("receiver_username", username)
         .eq("read", false);
-      
+
       if (!error) {
         setUnreadCount(count || 0);
       }
@@ -104,6 +106,10 @@ export default function App() {
               <Link to="/chat" className={`hover:text-white px-1 ${unreadCount > 0 ? 'font-bold text-white' : ''}`}>
                 chat {unreadCount > 0 && `(${unreadCount})`}
               </Link>
+              <span className="text-[#222]">|</span>
+              <Link to="/saved" className="hover:text-white px-1">saved</Link>
+              <span className="text-[#222]">|</span>
+              <Link to="/trends" className="hover:text-white px-1">trends</Link>
               {session && (
                 <>
                   <span className="text-[#222]">|</span>
@@ -134,17 +140,19 @@ export default function App() {
                 <Route path="/submit" element={session ? <Submit username={username} /> : <Navigate to="/login" />} />
                 <Route path="/chat" element={session ? <Chat username={username} /> : <Navigate to="/login" />} />
                 <Route path="/applications" element={session ? <Applications username={username} /> : <Navigate to="/login" />} />
+                <Route path="/saved" element={<Saved />} />
+                <Route path="/trends" element={<Trends />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/contact" element={<Contact />} />
               </Routes>
             )}
           </main>
-          
+
           {/* Footer */}
           <footer className="bg-white p-4 border-t border-[#828282] text-center text-[9pt] text-[#828282]">
-            <a 
-              href="https://www.seattle.gov/police/information-and-data/data/online-crime-maps" 
-              target="_blank" 
+            <a
+              href="https://www.seattle.gov/police/information-and-data/data/online-crime-maps"
+              target="_blank"
               rel="noopener noreferrer"
               className="hover:underline"
             >

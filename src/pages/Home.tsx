@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
+import { getSavedIds, toggleSaved } from "../utils/saved";
 
 export default function Home({ username }: { username: string }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [savedIds, setSavedIds] = useState<string[]>(() => getSavedIds());
   const location = useLocation();
   const isNewRoute = location.pathname === '/new';
 
@@ -21,7 +23,7 @@ export default function Home({ username }: { username: string }) {
     const fetchListings = async () => {
       setLoading(true);
       let query = supabase.from("listings").select("*");
-      
+
       if (isNewRoute) {
         query = query.order("created_at", { ascending: false });
       } else {
@@ -31,7 +33,7 @@ export default function Home({ username }: { username: string }) {
       query = query.range(page * 12, (page + 1) * 12);
 
       const { data, error } = await query;
-      
+
       if (error) {
         console.error("Error fetching listings:", error);
       } else {
@@ -61,6 +63,11 @@ export default function Home({ username }: { username: string }) {
     await supabase.from("upvotes").insert({ user_id: user.id, listing_id: listingId });
     await supabase.rpc("increment_points", { listing_id: listingId });
     setListings(prev => prev.map(l => l.id === listingId ? { ...l, points: l.points + 1 } : l));
+  };
+
+  const handleToggleSave = (listingId: string) => {
+    toggleSaved(listingId);
+    setSavedIds(getSavedIds());
   };
 
   return (
@@ -116,6 +123,14 @@ export default function Home({ username }: { username: string }) {
                     </Link>
                   </>
                 )}
+                {" | "}
+                <button
+                  onClick={() => handleToggleSave(listing.id)}
+                  className={`hover:underline ${savedIds.includes(listing.id) ? "text-[#ff6600]" : "text-[#828282]"}`}
+                  title={savedIds.includes(listing.id) ? "Remove from saved" : "Save listing"}
+                >
+                  {savedIds.includes(listing.id) ? "★ saved" : "☆ save"}
+                </button>
               </div>
             </div>
           </li>
@@ -126,8 +141,8 @@ export default function Home({ username }: { username: string }) {
       )}
       {hasMore && (
         <div className="mt-4 pl-6 flex gap-4">
-          <button 
-            onClick={() => setPage(p => p + 1)} 
+          <button
+            onClick={() => setPage(p => p + 1)}
             className="text-[#828282] hover:underline text-[10pt]"
           >
             More
