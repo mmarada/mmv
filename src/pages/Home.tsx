@@ -4,12 +4,25 @@ import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import { getSavedIds, toggleSaved } from "../utils/saved";
 
+type Filters = {
+  keyword: string;
+  neighborhood: string;
+  minRent: string;
+  maxRent: string;
+  type: string;
+};
+
+const EMPTY_FILTERS: Filters = { keyword: "", neighborhood: "", minRent: "", maxRent: "", type: "" };
+
 export default function Home({ username }: { username: string }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>(() => getSavedIds());
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [activeFilters, setActiveFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
   const location = useLocation();
   const isNewRoute = location.pathname === '/new';
 
@@ -20,9 +33,38 @@ export default function Home({ username }: { username: string }) {
   }, [isNewRoute]);
 
   useEffect(() => {
+    supabase
+      .from("listings")
+      .select("neighborhood")
+      .not("neighborhood", "is", null)
+      .then(({ data }) => {
+        if (data) {
+          const unique = [...new Set(data.map((r: any) => (r.neighborhood as string).trim()).filter(Boolean))].sort() as string[];
+          setNeighborhoods(unique);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
     const fetchListings = async () => {
       setLoading(true);
       let query = supabase.from("listings").select("*");
+
+      if (activeFilters.keyword) {
+        query = query.ilike("title", `%${activeFilters.keyword}%`);
+      }
+      if (activeFilters.neighborhood) {
+        query = query.eq("neighborhood", activeFilters.neighborhood);
+      }
+      if (activeFilters.type) {
+        query = query.eq("type", activeFilters.type);
+      }
+      if (activeFilters.minRent) {
+        query = query.gte("rent", Number(activeFilters.minRent));
+      }
+      if (activeFilters.maxRent) {
+        query = query.lte("rent", Number(activeFilters.maxRent));
+      }
 
       if (isNewRoute) {
         query = query.order("created_at", { ascending: false });
@@ -45,7 +87,7 @@ export default function Home({ username }: { username: string }) {
     };
 
     fetchListings();
-  }, [isNewRoute, page]);
+  }, [isNewRoute, page, activeFilters]);
 
   const handleUpvote = async (listingId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -70,8 +112,83 @@ export default function Home({ username }: { username: string }) {
     setSavedIds(getSavedIds());
   };
 
+  const applyFilters = () => {
+    setPage(0);
+    setListings([]);
+    setActiveFilters({ ...filters });
+  };
+
+  const clearFilters = () => {
+    setFilters(EMPTY_FILTERS);
+    setPage(0);
+    setListings([]);
+    setActiveFilters(EMPTY_FILTERS);
+  };
+
+  const hasActiveFilters = Object.values(activeFilters).some(Boolean);
+
   return (
     <div className="flex flex-col gap-2">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-1 pl-1 py-1 border-b border-[#e8e8e8] text-[9pt] text-[#828282]">
+        <input
+          type="text"
+          placeholder="search title…"
+          value={filters.keyword}
+          onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))}
+          onKeyDown={(e) => e.key === "Enter" && applyFilters()}
+          className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt] w-36"
+        />
+        <select
+          value={filters.neighborhood}
+          onChange={(e) => setFilters((f) => ({ ...f, neighborhood: e.target.value }))}
+          className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt]"
+        >
+          <option value="">any neighborhood</option>
+          {neighborhoods.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <select
+          value={filters.type}
+          onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))}
+          className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt]"
+        >
+          <option value="">any type</option>
+          <option value="property">property</option>
+          <option value="requirement">requirement</option>
+        </select>
+        <span className="text-[#c8c8c8]">$</span>
+        <input
+          type="number"
+          placeholder="min rent"
+          value={filters.minRent}
+          onChange={(e) => setFilters((f) => ({ ...f, minRent: e.target.value }))}
+          onKeyDown={(e) => e.key === "Enter" && applyFilters()}
+          className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt] w-20"
+        />
+        <span className="text-[#c8c8c8]">–</span>
+        <input
+          type="number"
+          placeholder="max rent"
+          value={filters.maxRent}
+          onChange={(e) => setFilters((f) => ({ ...f, maxRent: e.target.value }))}
+          onKeyDown={(e) => e.key === "Enter" && applyFilters()}
+          className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt] w-20"
+        />
+        <button
+          onClick={applyFilters}
+          className="border border-[#828282] bg-[#d4d4d4] px-2 py-0.5 text-[9pt] text-black hover:bg-[#c4c4c4] cursor-pointer"
+        >
+          filter
+        </button>
+        {hasActiveFilters && (
+          <button onClick={clearFilters} className="text-[#ff6600] hover:underline text-[9pt] cursor-pointer">
+            clear
+          </button>
+        )}
+      </div>
+
       <ol className="list-decimal pl-6 text-[#828282] m-0" start={page * 12 + 1}>
         {listings.map((listing) => (
           <li key={listing.id} className="mb-1 text-[10pt] marker:text-[#828282]">
@@ -136,8 +253,10 @@ export default function Home({ username }: { username: string }) {
           </li>
         ))}
       </ol>
-      {listings.length === 0 && (
-        <div className="pl-6 text-[#828282]">No listings found. Be the first to submit one!</div>
+      {listings.length === 0 && !loading && (
+        <div className="pl-6 text-[#828282]">
+          {hasActiveFilters ? "No listings match those filters." : "No listings found. Be the first to submit one!"}
+        </div>
       )}
       {hasMore && (
         <div className="mt-4 pl-6 flex gap-4">
