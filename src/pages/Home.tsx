@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import { getSavedIds, toggleSaved } from "../utils/saved";
@@ -14,14 +14,35 @@ type Filters = {
 
 const EMPTY_FILTERS: Filters = { keyword: "", neighborhood: "", minRent: "", maxRent: "", type: "" };
 
+function filtersFromParams(params: URLSearchParams): Filters {
+  return {
+    keyword: params.get("q") || "",
+    neighborhood: params.get("neighborhood") || "",
+    minRent: params.get("minRent") || "",
+    maxRent: params.get("maxRent") || "",
+    type: params.get("type") || "",
+  };
+}
+
+function filtersToParams(f: Filters): URLSearchParams {
+  const p = new URLSearchParams();
+  if (f.keyword) p.set("q", f.keyword);
+  if (f.neighborhood) p.set("neighborhood", f.neighborhood);
+  if (f.minRent) p.set("minRent", f.minRent);
+  if (f.maxRent) p.set("maxRent", f.maxRent);
+  if (f.type) p.set("type", f.type);
+  return p;
+}
+
 export default function Home({ username }: { username: string }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>(() => getSavedIds());
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [activeFilters, setActiveFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams));
+  const [activeFilters, setActiveFilters] = useState<Filters>(() => filtersFromParams(searchParams));
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
   const location = useLocation();
   const isNewRoute = location.pathname === '/new';
@@ -116,6 +137,7 @@ export default function Home({ username }: { username: string }) {
     setPage(0);
     setListings([]);
     setActiveFilters({ ...filters });
+    setSearchParams(filtersToParams(filters), { replace: true });
   };
 
   const clearFilters = () => {
@@ -123,6 +145,7 @@ export default function Home({ username }: { username: string }) {
     setPage(0);
     setListings([]);
     setActiveFilters(EMPTY_FILTERS);
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const hasActiveFilters = Object.values(activeFilters).some(Boolean);
