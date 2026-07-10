@@ -24,13 +24,19 @@ function filtersFromParams(params: URLSearchParams): Filters {
   };
 }
 
-function filtersToParams(f: Filters): URLSearchParams {
+function pageFromParams(params: URLSearchParams): number {
+  const raw = parseInt(params.get("page") || "1", 10);
+  return Number.isFinite(raw) && raw > 1 ? raw - 1 : 0;
+}
+
+function paramsFromState(f: Filters, page: number): URLSearchParams {
   const p = new URLSearchParams();
   if (f.keyword) p.set("q", f.keyword);
   if (f.neighborhood) p.set("neighborhood", f.neighborhood);
   if (f.minRent) p.set("minRent", f.minRent);
   if (f.maxRent) p.set("maxRent", f.maxRent);
   if (f.type) p.set("type", f.type);
+  if (page > 0) p.set("page", String(page + 1));
   return p;
 }
 
@@ -38,7 +44,7 @@ export default function Home({ username }: { username: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => pageFromParams(searchParams));
   const [hasMore, setHasMore] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>(() => getSavedIds());
   const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams));
@@ -137,7 +143,7 @@ export default function Home({ username }: { username: string }) {
     setPage(0);
     setListings([]);
     setActiveFilters({ ...filters });
-    setSearchParams(filtersToParams(filters), { replace: true });
+    setSearchParams(paramsFromState(filters, 0), { replace: true });
   };
 
   const clearFilters = () => {
@@ -146,6 +152,11 @@ export default function Home({ username }: { username: string }) {
     setListings([]);
     setActiveFilters(EMPTY_FILTERS);
     setSearchParams(new URLSearchParams(), { replace: true });
+  };
+
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+    setSearchParams(paramsFromState(activeFilters, nextPage), { replace: true });
   };
 
   const hasActiveFilters = Object.values(activeFilters).some(Boolean);
@@ -281,14 +292,24 @@ export default function Home({ username }: { username: string }) {
           {hasActiveFilters ? "No listings match those filters." : "No listings found. Be the first to submit one!"}
         </div>
       )}
-      {hasMore && (
+      {(page > 0 || hasMore) && (
         <div className="mt-4 pl-6 flex gap-4">
-          <button
-            onClick={() => setPage(p => p + 1)}
-            className="text-[#828282] hover:underline text-[10pt]"
-          >
-            More
-          </button>
+          {page > 0 && (
+            <button
+              onClick={() => goToPage(page - 1)}
+              className="text-[#828282] hover:underline text-[10pt]"
+            >
+              ‹ Prev
+            </button>
+          )}
+          {hasMore && (
+            <button
+              onClick={() => goToPage(page + 1)}
+              className="text-[#828282] hover:underline text-[10pt]"
+            >
+              More
+            </button>
+          )}
         </div>
       )}
     </div>
