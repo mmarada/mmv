@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
@@ -52,6 +52,7 @@ export default function Home({ username }: { username: string }) {
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
   const location = useLocation();
   const isNewRoute = location.pathname === '/new';
+  const scrollPositionsRef = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     setPage(0);
@@ -116,6 +117,15 @@ export default function Home({ username }: { username: string }) {
     fetchListings();
   }, [isNewRoute, page, activeFilters]);
 
+  useEffect(() => {
+    if (loading) return;
+    const saved = scrollPositionsRef.current.get(page);
+    if (saved !== undefined) {
+      window.scrollTo(0, saved);
+      scrollPositionsRef.current.delete(page);
+    }
+  }, [loading, page]);
+
   const handleUpvote = async (listingId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -140,6 +150,7 @@ export default function Home({ username }: { username: string }) {
   };
 
   const applyFilters = () => {
+    scrollPositionsRef.current.clear();
     setPage(0);
     setListings([]);
     setActiveFilters({ ...filters });
@@ -147,6 +158,7 @@ export default function Home({ username }: { username: string }) {
   };
 
   const clearFilters = () => {
+    scrollPositionsRef.current.clear();
     setFilters(EMPTY_FILTERS);
     setPage(0);
     setListings([]);
@@ -155,6 +167,7 @@ export default function Home({ username }: { username: string }) {
   };
 
   const goToPage = (nextPage: number) => {
+    scrollPositionsRef.current.set(page, window.scrollY);
     setPage(nextPage);
     setSearchParams(paramsFromState(activeFilters, nextPage), { replace: true });
   };
