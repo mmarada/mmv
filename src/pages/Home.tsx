@@ -126,6 +126,27 @@ export default function Home({ username }: { username: string }) {
     }
   }, [loading, page]);
 
+  // Reconcile state from the URL on browser back/forward. goToPage/applyFilters/
+  // clearFilters already set page & filters state before calling setSearchParams,
+  // so on those paths urlPage/urlFilters already match state and this is a no-op —
+  // it only fires for popstate navigation, which changes searchParams without ever
+  // touching our state setters.
+  useEffect(() => {
+    const urlPage = pageFromParams(searchParams);
+    const urlFilters = filtersFromParams(searchParams);
+    const filtersChanged = (Object.keys(urlFilters) as (keyof Filters)[]).some(
+      (k) => urlFilters[k] !== activeFilters[k]
+    );
+
+    if (urlPage === page && !filtersChanged) return;
+
+    scrollPositionsRef.current.clear();
+    setPage(urlPage);
+    setFilters(urlFilters);
+    setActiveFilters(urlFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleUpvote = async (listingId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
