@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import { getSavedIds, toggleSaved } from "../utils/saved";
 
 export default function Saved() {
+  const [searchParams] = useSearchParams();
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [imported, setImported] = useState(false);
+
+  const sharedIds = searchParams.get("ids")?.split(",").filter(Boolean) || [];
+  const isSharedView = sharedIds.length > 0;
 
   useEffect(() => {
-    const ids = getSavedIds();
+    const ids = isSharedView ? sharedIds : getSavedIds();
     if (ids.length === 0) {
       setLoading(false);
       return;
@@ -23,11 +29,28 @@ export default function Saved() {
         if (!error) setListings(data || []);
         setLoading(false);
       });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleUnsave = (id: string) => {
     toggleSaved(id);
     setListings((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  const handleShare = async () => {
+    const ids = getSavedIds();
+    const url = `${window.location.origin}/saved?ids=${ids.join(",")}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleImportAll = () => {
+    const existing = getSavedIds();
+    sharedIds.forEach((id) => {
+      if (!existing.includes(id)) toggleSaved(id);
+    });
+    setImported(true);
   };
 
   if (loading) {
@@ -36,13 +59,38 @@ export default function Saved() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[10pt] text-[#828282] mb-2 border-b border-[#e8e8e8] pb-1">
-        saved listings —{" "}
-        <span className="text-black font-medium">{listings.length}</span>{" "}
-        {listings.length === 1 ? "listing" : "listings"}
+      <div className="text-[10pt] text-[#828282] mb-2 border-b border-[#e8e8e8] pb-1 flex items-center justify-between flex-wrap gap-1">
+        <span>
+          {isSharedView ? "shared listings" : "saved listings"} —{" "}
+          <span className="text-black font-medium">{listings.length}</span>{" "}
+          {listings.length === 1 ? "listing" : "listings"}
+        </span>
+        {isSharedView ? (
+          listings.length > 0 && (
+            <button
+              onClick={handleImportAll}
+              disabled={imported}
+              className="text-[#ff6600] hover:underline text-[9pt] disabled:text-[#c8c8c8] disabled:no-underline cursor-pointer disabled:cursor-default"
+            >
+              {imported ? "added to my list ✓" : "+ add all to my list"}
+            </button>
+          )
+        ) : (
+          listings.length > 0 && (
+            <button onClick={handleShare} className="text-[#ff6600] hover:underline text-[9pt] cursor-pointer">
+              {copied ? "copied!" : "share this list"}
+            </button>
+          )
+        )}
       </div>
 
-      {listings.length === 0 && (
+      {isSharedView && (
+        <div className="pl-2 text-[8pt] text-[#828282] -mt-1 mb-1">
+          Someone shared this list with you — it's read-only until you add it to your own.
+        </div>
+      )}
+
+      {listings.length === 0 && !isSharedView && (
         <div className="pl-2 text-[#828282]">
           No saved listings yet. Click ☆ on any listing to save it here.
         </div>
@@ -53,13 +101,15 @@ export default function Saved() {
           <li key={listing.id} className="mb-1 text-[10pt] marker:text-[#828282]">
             <div className="flex flex-col">
               <div className="flex items-baseline gap-1">
-                <button
-                  onClick={() => handleUnsave(listing.id)}
-                  className="text-[#ff6600] hover:text-[#828282] mr-1 text-[9pt]"
-                  title="Remove from saved"
-                >
-                  ★
-                </button>
+                {!isSharedView && (
+                  <button
+                    onClick={() => handleUnsave(listing.id)}
+                    className="text-[#ff6600] hover:text-[#828282] mr-1 text-[9pt]"
+                    title="Remove from saved"
+                  >
+                    ★
+                  </button>
+                )}
                 <Link
                   to={`/item?id=${listing.id}`}
                   className="text-black hover:underline"
