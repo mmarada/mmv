@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import { getSavedIds, toggleSaved } from "../utils/saved";
 
-type SortOrder = "" | "rent_asc" | "rent_desc";
+type SortOrder = "" | "rent_asc" | "rent_desc" | "newest";
 
 type Filters = {
   keyword: string;
@@ -19,7 +19,8 @@ const EMPTY_FILTERS: Filters = { keyword: "", neighborhood: "", minRent: "", max
 
 function filtersFromParams(params: URLSearchParams): Filters {
   const rawSort = params.get("sort");
-  const sort: SortOrder = rawSort === "rent_asc" || rawSort === "rent_desc" ? rawSort : "";
+  const sort: SortOrder =
+    rawSort === "rent_asc" || rawSort === "rent_desc" || rawSort === "newest" ? rawSort : "";
   return {
     keyword: params.get("q") || "",
     neighborhood: params.get("neighborhood") || "",
@@ -107,6 +108,8 @@ export default function Home({ username }: { username: string }) {
         query = query.order("rent", { ascending: true }).order("created_at", { ascending: false });
       } else if (activeFilters.sort === "rent_desc") {
         query = query.order("rent", { ascending: false }).order("created_at", { ascending: false });
+      } else if (activeFilters.sort === "newest") {
+        query = query.order("created_at", { ascending: false });
       } else {
         query = query.order("points", { ascending: false }).order("created_at", { ascending: false });
       }
@@ -244,6 +247,7 @@ export default function Home({ username }: { username: string }) {
             className="border border-[#c8c8c8] px-1 py-0.5 text-[9pt]"
           >
             <option value="">sort: top</option>
+            <option value="newest">sort: newest</option>
             <option value="rent_asc">sort: rent ↑</option>
             <option value="rent_desc">sort: rent ↓</option>
           </select>
