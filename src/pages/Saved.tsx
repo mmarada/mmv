@@ -2,9 +2,17 @@ import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
-import { getSavedIds, toggleSaved } from "../utils/saved";
+import {
+  acknowledgePriceChange,
+  backfillSnapshots,
+  getPriceChange,
+  getSavedIds,
+  listingPrice,
+  toggleSaved,
+  type PriceChange,
+} from "../utils/saved";
 
-type SortOrder = "saved" | "rent_asc" | "rent_desc";
+type SortOrder = "saved" | "rent_asc" | "rent_desc" | "price_change";
 
 export default function Saved() {
   const [searchParams] = useSearchParams();
@@ -13,6 +21,8 @@ export default function Saved() {
   const [copied, setCopied] = useState(false);
   const [imported, setImported] = useState(false);
   const [sort, setSort] = useState<SortOrder>("saved");
+  // Snapshots live in localStorage, so bump this to re-render after one changes.
+  const [, setSnapshotVersion] = useState(0);
 
   const sharedIds = searchParams.get("ids")?.split(",").filter(Boolean) || [];
   const isSharedView = sharedIds.length > 0;
@@ -29,7 +39,10 @@ export default function Saved() {
       .in("id", ids)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (!error) setListings(data || []);
+        if (!error) {
+          if (!isSharedView) backfillSnapshots(data || []);
+          setListings(data || []);
+        }
         setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,9 +64,16 @@ export default function Saved() {
   const handleImportAll = () => {
     const existing = getSavedIds();
     sharedIds.forEach((id) => {
-      if (!existing.includes(id)) toggleSaved(id);
+      if (existing.includes(id)) return;
+      const listing = listings.find((l) => l.id === id);
+      toggleSaved(id, listing ? listingPrice(listing) : null);
     });
     setImported(true);
+  };
+
+  const handleAcknowledge = (id: string, price: number) => {
+    acknowledgePriceChange(id, price);
+    setSnapshotVersion((v) => v + 1);
   };
 
   if (loading) {
@@ -65,7 +85,18 @@ export default function Saved() {
   // saved listing shows first without needing a stored timestamp.
   const orderIds = isSharedView ? sharedIds : getSavedIds();
   const orderIndex = new Map(orderIds.map((id, i) => [id, i]));
+  // Price changes are measured against the viewer's own save-time snapshot, so
+  // they only make sense on the viewer's own list, not someone else's share.
+  const changes = new Map<string, PriceChange | null>(
+    isSharedView ? [] : listings.map((l) => [l.id, getPriceChange(l.id, listingPrice(l))]),
+  );
+  const dropCount = [...changes.values()].filter((c) => c && c.delta < 0).length;
   const sortedListings = [...listings].sort((a, b) => {
+    if (sort === "price_change") {
+      // Biggest drop first, then unchanged, then increases.
+      const diff = (changes.get(a.id)?.delta ?? 0) - (changes.get(b.id)?.delta ?? 0);
+      if (diff !== 0) return diff;
+    }
     if (sort === "rent_asc") return (a.rent ?? a.budget ?? 0) - (b.rent ?? b.budget ?? 0);
     if (sort === "rent_desc") return (b.rent ?? b.budget ?? 0) - (a.rent ?? a.budget ?? 0);
     return (orderIndex.get(b.id) ?? 0) - (orderIndex.get(a.id) ?? 0);
@@ -78,6 +109,11 @@ export default function Saved() {
           {isSharedView ? "shared listings" : "saved listings"} —{" "}
           <span className="text-black font-medium">{listings.length}</span>{" "}
           {listings.length === 1 ? "listing" : "listings"}
+          {dropCount > 0 && (
+            <span className="ml-2 text-[#2e7d32] text-[9pt]">
+              · {dropCount} price {dropCount === 1 ? "drop" : "drops"} since you saved
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-2">
           {listings.length > 1 && (
@@ -89,6 +125,7 @@ export default function Saved() {
               <option value="saved">sort: {isSharedView ? "list order" : "recently saved"}</option>
               <option value="rent_asc">sort: rent ↑</option>
               <option value="rent_desc">sort: rent ↓</option>
+              {!isSharedView && <option value="price_change">sort: biggest price drop</option>}
             </select>
           )}
           {isSharedView ? (
@@ -124,49 +161,68 @@ export default function Saved() {
       )}
 
       <ol className="list-decimal pl-6 text-[#828282] m-0">
-        {sortedListings.map((listing) => (
-          <li key={listing.id} className="mb-1 text-[10pt] marker:text-[#828282]">
-            <div className="flex flex-col">
-              <div className="flex items-baseline gap-1">
-                {!isSharedView && (
-                  <button
-                    onClick={() => handleUnsave(listing.id)}
-                    className="text-[#ff6600] hover:text-[#828282] mr-1 text-[9pt]"
-                    title="Remove from saved"
+        {sortedListings.map((listing) => {
+          const change = changes.get(listing.id);
+          return (
+            <li key={listing.id} className="mb-1 text-[10pt] marker:text-[#828282]">
+              <div className="flex flex-col">
+                <div className="flex items-baseline gap-1">
+                  {!isSharedView && (
+                    <button
+                      onClick={() => handleUnsave(listing.id)}
+                      className="text-[#ff6600] hover:text-[#828282] mr-1 text-[9pt]"
+                      title="Remove from saved"
+                    >
+                      ★
+                    </button>
+                  )}
+                  <Link
+                    to={`/item?id=${listing.id}`}
+                    className="text-black hover:underline"
                   >
-                    ★
-                  </button>
-                )}
-                <Link
-                  to={`/item?id=${listing.id}`}
-                  className="text-black hover:underline"
-                >
-                  {listing.title}
-                </Link>
-                {listing.url && (
-                  <a
-                    href={listing.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#828282] text-[8pt] hover:underline"
-                  >
-                    ({listing.domain || "link"})
-                  </a>
-                )}
-                <span className="text-[#ff6600] text-[8pt] font-bold ml-1">
-                  ${listing.rent || listing.budget}/mo
-                </span>
-                <span className="text-[#828282] text-[8pt] ml-1">
-                  in {listing.neighborhood}
-                </span>
+                    {listing.title}
+                  </Link>
+                  {listing.url && (
+                    <a
+                      href={listing.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#828282] text-[8pt] hover:underline"
+                    >
+                      ({listing.domain || "link"})
+                    </a>
+                  )}
+                  <span className="text-[#ff6600] text-[8pt] font-bold ml-1">
+                    ${listing.rent || listing.budget}/mo
+                  </span>
+                  <span className="text-[#828282] text-[8pt] ml-1">
+                    in {listing.neighborhood}
+                  </span>
+                  {change && (
+                    <span
+                      className={`text-[8pt] ml-1 ${change.delta < 0 ? "text-[#2e7d32]" : "text-[#c62828]"}`}
+                      title={`$${change.from}/mo when you saved it`}
+                    >
+                      {change.delta < 0 ? "↓" : "↑"} ${Math.abs(change.delta)} ({change.delta < 0 ? "" : "+"}
+                      {change.pct.toFixed(0)}%) since saved
+                      <button
+                        onClick={() => handleAcknowledge(listing.id, change.to)}
+                        className="text-[#828282] hover:underline ml-1 cursor-pointer"
+                        title="Use the current rent as the new baseline"
+                      >
+                        [ok]
+                      </button>
+                    </span>
+                  )}
+                </div>
+                <div className="text-[8pt] text-[#828282]">
+                  {listing.points} points by {listing.username} ·{" "}
+                  {formatDistanceToNow(new Date(listing.created_at))} ago
+                </div>
               </div>
-              <div className="text-[8pt] text-[#828282]">
-                {listing.points} points by {listing.username} ·{" "}
-                {formatDistanceToNow(new Date(listing.created_at))} ago
-              </div>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

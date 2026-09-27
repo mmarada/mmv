@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
-import { getSavedIds, toggleSaved } from "../utils/saved";
+import { getSavedIds, listingPrice, toggleSaved } from "../utils/saved";
 
 type SortOrder = "" | "rent_asc" | "rent_desc" | "newest";
 
@@ -179,8 +179,8 @@ export default function Home({ username }: { username: string }) {
     setListings(prev => prev.map(l => l.id === listingId ? { ...l, points: l.points + 1 } : l));
   };
 
-  const handleToggleSave = (listingId: string) => {
-    toggleSaved(listingId);
+  const handleToggleSave = (listing: any) => {
+    toggleSaved(listing.id, listingPrice(listing));
     setSavedIds(getSavedIds());
   };
 
@@ -336,7 +336,7 @@ export default function Home({ username }: { username: string }) {
                 )}
                 {" | "}
                 <button
-                  onClick={() => handleToggleSave(listing.id)}
+                  onClick={() => handleToggleSave(listing)}
                   className={`hover:underline ${savedIds.includes(listing.id) ? "text-[#ff6600]" : "text-[#828282]"}`}
                   title={savedIds.includes(listing.id) ? "Remove from saved" : "Save listing"}
                 >
