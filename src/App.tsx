@@ -12,6 +12,7 @@ import Contact from "./pages/Contact";
 import Applications from "./pages/Applications";
 import Saved from "./pages/Saved";
 import Trends from "./pages/Trends";
+import SavedNavLink from "./components/SavedNavLink";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -107,7 +108,7 @@ export default function App() {
                 chat {unreadCount > 0 && `(${unreadCount})`}
               </Link>
               <span className="text-[#222]">|</span>
-              <Link to="/saved" className="hover:text-white px-1">saved</Link>
+              <SavedNavLink />
               <span className="text-[#222]">|</span>
               <Link to="/trends" className="hover:text-white px-1">trends</Link>
               {session && (

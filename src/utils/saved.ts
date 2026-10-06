@@ -4,6 +4,12 @@ const SAVED_KEY = "nd_saved_listings";
 // keep working unchanged.
 const SNAPSHOT_KEY = "nd_saved_rent_snapshots";
 
+// Fired on window whenever the saved ids or rent snapshots change in this tab,
+// so the nav badge can recount without polling. Other tabs get the native
+// "storage" event for the same keys.
+export const SAVED_CHANGED_EVENT = "nd:saved-changed";
+export const SAVED_STORAGE_KEYS = [SAVED_KEY, SNAPSHOT_KEY];
+
 type Snapshots = Record<string, number>;
 
 export type PriceChange = {
@@ -30,8 +36,13 @@ function getSnapshots(): Snapshots {
   }
 }
 
+function notifyChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SAVED_CHANGED_EVENT));
+}
+
 function setSnapshots(snapshots: Snapshots) {
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
+  notifyChanged();
 }
 
 type Priced = { rent?: number | string | null; budget?: number | string | null };
@@ -53,6 +64,8 @@ export function toggleSaved(id: string, price?: number | null): boolean {
     if (price != null) {
       snapshots[id] = price;
       setSnapshots(snapshots);
+    } else {
+      notifyChanged();
     }
     return true;
   }
@@ -61,6 +74,8 @@ export function toggleSaved(id: string, price?: number | null): boolean {
   if (id in snapshots) {
     delete snapshots[id];
     setSnapshots(snapshots);
+  } else {
+    notifyChanged();
   }
   return false;
 }
@@ -95,4 +110,14 @@ export function acknowledgePriceChange(id: string, currentPrice: number) {
   const snapshots = getSnapshots();
   snapshots[id] = currentPrice;
   setSnapshots(snapshots);
+}
+
+// Saved listings whose rent is below the save-time (or last acknowledged)
+// baseline. Legacy saves without a baseline don't count, matching the Saved
+// page, which only shows a badge once a baseline exists.
+export function countPriceDrops(listings: (Priced & { id: string })[]): number {
+  return listings.filter((l) => {
+    const change = getPriceChange(l.id, listingPrice(l));
+    return change != null && change.delta < 0;
+  }).length;
 }
