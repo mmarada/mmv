@@ -87,6 +87,9 @@ CREATE POLICY "Authenticated users can insert messages"
 -- Enable realtime for messages
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 
+-- Enable realtime for listings so saved-listing rent changes reach the nav badge
+ALTER PUBLICATION supabase_realtime ADD TABLE public.listings;
+
 -- Function to handle new user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
