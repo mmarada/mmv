@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
+import { useSavedRents } from "../hooks/SavedRentsContext";
+import { nextRentSeq } from "../hooks/useSavedPriceDrops";
 import {
   acknowledgePriceChange,
   backfillSnapshots,
@@ -16,7 +18,7 @@ type SortOrder = "saved" | "rent_asc" | "rent_desc" | "price_change";
 
 export default function Saved() {
   const [searchParams] = useSearchParams();
-  const [listings, setListings] = useState<any[]>([]);
+  const [fetchedListings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [imported, setImported] = useState(false);
@@ -27,12 +29,29 @@ export default function Saved() {
   const sharedIds = searchParams.get("ids")?.split(",").filter(Boolean) || [];
   const isSharedView = sharedIds.length > 0;
 
+  // The app-wide saved-rents state (the same fetch + Realtime channel behind
+  // the nav badge) keeps rents current while the page is open. A live rent is
+  // only applied when it was observed after this page's fetch was issued, so a
+  // rent the nav loaded earlier never overwrites the fresher one fetched here.
+  const { rents } = useSavedRents();
+  const fetchSeq = useRef(0);
+  const listings = useMemo(() => {
+    if (isSharedView) return fetchedListings;
+    return fetchedListings.map((l) => {
+      const live = rents.get(l.id);
+      if (!live || live.seq <= fetchSeq.current) return l;
+      if (live.rent === l.rent && live.budget === l.budget) return l;
+      return { ...l, rent: live.rent, budget: live.budget };
+    });
+  }, [fetchedListings, rents, isSharedView]);
+
   useEffect(() => {
     const ids = isSharedView ? sharedIds : getSavedIds();
     if (ids.length === 0) {
       setLoading(false);
       return;
     }
+    fetchSeq.current = nextRentSeq();
     supabase
       .from("listings")
       .select("*")

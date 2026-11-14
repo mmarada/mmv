@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useSavedPriceDrops } from "../hooks/useSavedPriceDrops";
+import { useSavedPriceDrops } from "../hooks/SavedRentsContext";
 
 export default function SavedNavLink() {
   const drops = useSavedPriceDrops();

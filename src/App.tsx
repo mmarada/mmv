@@ -13,6 +13,7 @@ import Applications from "./pages/Applications";
 import Saved from "./pages/Saved";
 import Trends from "./pages/Trends";
 import SavedNavLink from "./components/SavedNavLink";
+import { SavedRentsProvider } from "./hooks/SavedRentsContext";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -88,6 +89,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <SavedRentsProvider>
       <Analytics />
       <div className="min-h-screen bg-[#f6f6ef] font-sans text-[10pt] text-[#828282]">
         <div className="mx-auto max-w-[85%] bg-white w-full">
@@ -164,6 +166,7 @@ export default function App() {
           </footer>
         </div>
       </div>
+      </SavedRentsProvider>
     </BrowserRouter>
   );
 }
