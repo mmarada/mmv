@@ -10,6 +10,7 @@ import {
   getPriceChange,
   getSavedIds,
   listingPrice,
+  SAVED_STORAGE_KEYS,
   toggleSaved,
   type PriceChange,
 } from "../utils/saved";
@@ -34,12 +35,14 @@ export default function Saved() {
   // only applied when it was observed after this page's fetch was issued, so a
   // rent the nav loaded earlier never overwrites the fresher one fetched here.
   const { rents } = useSavedRents();
-  const fetchSeq = useRef(0);
+  // Seq of the read each row came from: the page's initial fetch, or the
+  // smaller fetch that pulled in a listing saved later from another tab.
+  const rowSeq = useRef(new Map<string, number>());
   const listings = useMemo(() => {
     if (isSharedView) return fetchedListings;
     return fetchedListings.map((l) => {
       const live = rents.get(l.id);
-      if (!live || live.seq <= fetchSeq.current) return l;
+      if (!live || live.seq <= (rowSeq.current.get(l.id) ?? Infinity)) return l;
       if (live.rent === l.rent && live.budget === l.budget) return l;
       return { ...l, rent: live.rent, budget: live.budget };
     });
@@ -51,7 +54,7 @@ export default function Saved() {
       setLoading(false);
       return;
     }
-    fetchSeq.current = nextRentSeq();
+    const seq = nextRentSeq();
     supabase
       .from("listings")
       .select("*")
@@ -60,12 +63,60 @@ export default function Saved() {
       .then(({ data, error }) => {
         if (!error) {
           if (!isSharedView) backfillSnapshots(data || []);
+          rowSeq.current = new Map((data || []).map((l: any) => [l.id, seq]));
           setListings(data || []);
         }
         setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // Keep the viewer's own list in step with saves, unsaves and [ok]s made in
+  // other tabs (the native storage event only fires there, not in this tab).
+  // An unsave just drops the row; a save fetches only the listings this page
+  // doesn't have yet instead of reloading the whole list.
+  const listingsRef = useRef(fetchedListings);
+  listingsRef.current = fetchedListings;
+  const pendingIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (isSharedView) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== null && !SAVED_STORAGE_KEYS.includes(e.key)) return;
+      const saved = new Set(getSavedIds());
+      const have = new Set(listingsRef.current.map((l) => l.id));
+      const missing = [...saved].filter((id) => !have.has(id) && !pendingIds.current.has(id));
+      setListings((prev) => {
+        const kept = prev.filter((l) => saved.has(l.id));
+        return kept.length === prev.length ? prev : kept;
+      });
+      // Snapshots changed even if the ids didn't ([ok] or a backfill elsewhere).
+      setSnapshotVersion((v) => v + 1);
+      if (missing.length === 0) return;
+      missing.forEach((id) => pendingIds.current.add(id));
+      const seq = nextRentSeq();
+      supabase
+        .from("listings")
+        .select("*")
+        .in("id", missing)
+        .then(({ data, error }) => {
+          missing.forEach((id) => pendingIds.current.delete(id));
+          if (error || !data) return;
+          // Re-check against the list as it is now: the listing may have been
+          // unsaved again while the request was in flight.
+          const stillSaved = new Set(getSavedIds());
+          const added = data.filter((l: any) => stillSaved.has(l.id));
+          if (added.length === 0) return;
+          backfillSnapshots(added);
+          added.forEach((l: any) => rowSeq.current.set(l.id, seq));
+          setListings((prev) => {
+            const present = new Set(prev.map((l) => l.id));
+            return [...prev, ...added.filter((l: any) => !present.has(l.id))];
+          });
+        });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [isSharedView]);
 
   const handleUnsave = (id: string) => {
     toggleSaved(id);
